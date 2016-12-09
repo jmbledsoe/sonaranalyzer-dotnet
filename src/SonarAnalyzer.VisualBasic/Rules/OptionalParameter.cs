@@ -50,7 +50,7 @@ namespace SonarAnalyzer.Rules.VisualBasic
         protected override IEnumerable<ParameterSyntax> GetParameters(MethodBaseSyntax method) =>
             method.ParameterList?.Parameters ?? Enumerable.Empty<ParameterSyntax>();
 
-        protected override bool IsOptional(ParameterSyntax parameter) =>
+        protected override bool IsOptional(ParameterSyntax parameter, SemanticModel semanticModel) =>
             parameter.Modifiers.Any(m => m.IsKind(SyntaxKind.OptionalKeyword));
 
         protected sealed override GeneratedCodeRecognizer GeneratedCodeRecognizer => Helpers.VisualBasic.GeneratedCodeRecognizer.Instance;

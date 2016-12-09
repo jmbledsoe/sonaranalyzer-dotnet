@@ -57,7 +57,7 @@ namespace SonarAnalyzer.Rules.Common
 
                     var parameters = GetParameters(method);
 
-                    foreach (var parameter in parameters.Where(p => IsOptional(p) && !HasAllowedAttribute(p, c.SemanticModel)))
+                    foreach (var parameter in parameters.Where(p => IsOptional(p, c.SemanticModel) && !HasAllowedAttribute(p, c.SemanticModel)))
                     {
                         var location = GetReportLocation(parameter);
                         c.ReportDiagnostic(Diagnostic.Create(Rule, location));
@@ -75,7 +75,7 @@ namespace SonarAnalyzer.Rules.Common
         }
 
         protected abstract IEnumerable<TParameterSyntax> GetParameters(TMethodSyntax method);
-        protected abstract bool IsOptional(TParameterSyntax parameter);
+        protected abstract bool IsOptional(TParameterSyntax parameter, SemanticModel semanticModel);
         protected abstract Location GetReportLocation(TParameterSyntax parameter);
         public abstract ImmutableArray<TLanguageKindEnum> SyntaxKindsOfInterest { get; }
     }

@@ -28,13 +28,14 @@ using System.Collections.Generic;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using SonarAnalyzer.Helpers;
+using System;
 
 namespace SonarAnalyzer.Rules.CSharp
 {
     [DiagnosticAnalyzer(LanguageNames.CSharp)]
     [Rule(DiagnosticId)]
     public class OptionalParameter : OptionalParameterBase<SyntaxKind, BaseMethodDeclarationSyntax, ParameterSyntax>
-    {
+    {        
         protected static readonly DiagnosticDescriptor rule =
             DiagnosticDescriptorBuilder.GetDescriptor(DiagnosticId, MessageFormat, RspecStrings.ResourceManager);
 
@@ -46,8 +47,56 @@ namespace SonarAnalyzer.Rules.CSharp
         protected override IEnumerable<ParameterSyntax> GetParameters(BaseMethodDeclarationSyntax method) =>
             method.ParameterList?.Parameters ?? Enumerable.Empty<ParameterSyntax>();
 
-        protected override bool IsOptional(ParameterSyntax parameter) =>
-            parameter.Default != null && parameter.Default.Value != null;
+        protected override bool IsOptional(ParameterSyntax parameter, SemanticModel semanticModel)
+        {
+            var parameterTypeSymbol = semanticModel.GetSymbolInfo(parameter.Type).Symbol as ITypeSymbol;
+            
+            var literalValueSyntax = parameter.Default?.Value as LiteralExpressionSyntax;
+            if (literalValueSyntax != null)
+            {
+                var literalValue = literalValueSyntax.Token.Value;
+
+                // Always pass optional values set to null (which is always the default for reference types).
+                if (literalValue == null)
+                {
+                    return false; 
+                }
+
+                // Always fail if the parameter and default value have different types.
+                var literalValueTypeSymbol = semanticModel.Compilation.GetTypeByMetadataName(literalValue.GetType().FullName);
+                if (!literalValueTypeSymbol.Equals(parameterTypeSymbol))
+                {
+                    return true;
+                }
+
+                var literalValueType = literalValue.GetType();
+                if (literalValueType.IsValueType)
+                {
+                    var literalValueTypeDefault = Activator.CreateInstance(literalValue.GetType());
+
+                    // Only fail on optional values that are not the default value for the type.
+                    return !object.Equals(literalValue, literalValueTypeDefault);
+                }
+                else
+                {
+                    // Fail because the parameter value is non-null, but the type has a null default.
+                    return true;
+                }
+            }
+
+            var defaultValueSyntax = parameter.Default?.Value as DefaultExpressionSyntax;
+            if (defaultValueSyntax != null && defaultValueSyntax.Type != null)
+            {
+                var defaultTypeSymbol = semanticModel.GetSymbolInfo(defaultValueSyntax.Type).Symbol as ITypeSymbol;
+                
+                // Fail on optional values that don't have the same type as the parameter.
+                return !defaultTypeSymbol.Equals(parameterTypeSymbol);
+            }
+
+            // Parameter doesn't have a literal default value, so use the base implementation.
+            return parameter.Default != null && parameter.Default.Value != null;
+        }
+
 
         protected override Location GetReportLocation(ParameterSyntax parameter) =>
             parameter.Default.GetLocation();
